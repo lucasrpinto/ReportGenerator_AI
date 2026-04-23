@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Relatorios.Api/Relatorios.Api.csproj" />
+    <Project Path="src/Relatorios.Application/Relatorios.Application.csproj" />
+    <Project Path="src/Relatorios.Contracts/Relatorios.Contracts.csproj" />
+    <Project Path="src/Relatorios.Domain/Relatorios.Domain.csproj" />
+    <Project Path="src/Relatorios.Infrastructure/Relatorios.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+</Solution>
