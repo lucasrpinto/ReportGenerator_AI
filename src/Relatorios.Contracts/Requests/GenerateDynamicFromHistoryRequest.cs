@@ -2,8 +2,8 @@
 
 namespace Relatorios.Contracts.Requests;
 
-public sealed class GenerateDynamicReportRequest
+public sealed class GenerateDynamicFromHistoryRequest
 {
-    public string Prompt { get; set; } = string.Empty;
+    public Guid HistoryId { get; set; }
     public List<ReportFormat> Formats { get; set; } = new();
 }

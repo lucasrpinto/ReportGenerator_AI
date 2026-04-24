@@ -3,6 +3,7 @@
 public sealed class PreviewDynamicReportResult
 {
     public string Sql { get; set; } = string.Empty;
+    public Guid HistoryId { get; set; }
     public int RowCount { get; set; }
     public long ExecutionTimeMs { get; set; }
     public List<string> Columns { get; set; } = new();

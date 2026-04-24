@@ -95,6 +95,13 @@ public sealed class OpenAiQueryPlanner : IOpenAiQueryPlanner
                                     - Para ranking por valor total, use order_by no alias do campo agregado.
                                     - Exemplo: se p.total tiver aggregation = SUM e alias = total_sum, o order_by deve usar field = total_sum.
                                     - Nunca use ORDER BY com campo bruto não agrupado em consultas agregadas.
+                                    - Sempre use o tipo completo do join: INNER JOIN ou LEFT JOIN.
+                                    - Nunca use apenas INNER ou LEFT.
+                                    - Quando o usuário pedir valores, vendas, totais ou ranking de vendas, inclua campos relacionados a valor.
+                                    - O backend poderá complementar automaticamente valor total, valor estornado e valor líquido.
+                                    - Para média geral, use aggregation = AVG.
+                                    - Para média por cliente, use c.nome sem aggregation, p.total com aggregation = AVG e group_by contendo c.nome.
+                                    - Nunca escreva expressões como p.total - estorno no field. Use apenas campos simples alias.coluna.
 
                                     Exemplo de interpretação:
                                     Pedido: "quero os 10 pedidos cancelados de maior valor"

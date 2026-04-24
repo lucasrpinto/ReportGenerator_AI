@@ -1,10 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Relatorios.Application.UseCases.Reports.GenerateDynamicReport;
-using Relatorios.Application.UseCases.Reports.GenerateReport;
-using Relatorios.Application.UseCases.Reports.ListReportHistory;
+using Relatorios.Application.UseCases.Reports.GetDynamicReportHistory;
+using Relatorios.Application.UseCases.Reports.ListDynamicReportHistory;
 using Relatorios.Application.UseCases.Reports.PlanDynamicReport;
 using Relatorios.Application.UseCases.Reports.PreviewDynamicReport;
-using Relatorios.Application.UseCases.Reports.PreviewReport;
 using Relatorios.Contracts.Requests;
 using Relatorios.Contracts.Responses;
 
@@ -14,49 +13,7 @@ namespace Relatorios.Api.Controllers;
 [Route("api/reports")]
 public sealed class ReportsController : ControllerBase
 {
-    /*
-    [HttpPost("preview")]
-    [ProducesResponseType(typeof(PreviewReportResponse), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Preview(
-        [FromBody] PreviewReportRequest request,
-        [FromServices] PreviewReportHandler handler,
-        CancellationToken cancellationToken)
-    {
-        var command = new PreviewReportCommand
-        {
-            Prompt = request.Prompt
-        };
-
-        var result = await handler.HandleAsync(command, cancellationToken);
-
-        var response = new PreviewReportResponse
-        {
-            ReportName = result.ReportName,
-            ReportType = result.ReportType,
-            Entity = result.Entity,
-            Metric = result.Metric,
-            Summary = new PreviewReportSummaryResponse
-            {
-                RowCount = result.Summary.RowCount,
-                ValorTotal = result.Summary.ValorTotal
-            },
-            Columns = result.Columns,
-            Rows = result.Rows
-        };
-
-        if (result.Period is not null)
-        {
-            response.Period = new PreviewReportPeriodResponse
-            {
-                StartDate = result.Period.StartDate,
-                EndDate = result.Period.EndDate
-            };
-        }
-
-        return Ok(response);
-    }*/
-
-    [HttpPost("plan-dynamic")]
+    /*[HttpPost("plan-dynamic")]
     [ProducesResponseType(typeof(PlanDynamicReportResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> PlanDynamic(
     [FromBody] PlanDynamicReportRequest request,
@@ -108,7 +65,7 @@ public sealed class ReportsController : ControllerBase
         };
 
         return Ok(response);
-    }
+    }*/
 
     [HttpPost("preview-dynamic")]
     [ProducesResponseType(typeof(PreviewDynamicReportResponse), StatusCodes.Status200OK)]
@@ -126,6 +83,7 @@ public sealed class ReportsController : ControllerBase
 
         var response = new PreviewDynamicReportResponse
         {
+            HistoryId = result.HistoryId,
             Sql = result.Sql,
             RowCount = result.RowCount,
             ExecutionTimeMs = result.ExecutionTimeMs,
@@ -136,15 +94,15 @@ public sealed class ReportsController : ControllerBase
         return Ok(response);
     }
 
-    [HttpPost("generate-dynamic")]
-    public async Task<IActionResult> GenerateDynamic(
-    [FromBody] GenerateDynamicReportRequest request,
-    [FromServices] GenerateDynamicReportHandler handler,
+    [HttpPost("generate-dynamic/from-history")]
+    public async Task<IActionResult> GenerateDynamicFromHistory(
+    [FromBody] GenerateDynamicFromHistoryRequest request,
+    [FromServices] GenerateDynamicFromHistoryHandler handler,
     CancellationToken cancellationToken)
     {
-        var command = new GenerateDynamicReportCommand
+        var command = new GenerateDynamicFromHistoryCommand
         {
-            Prompt = request.Prompt,
+            HistoryId = request.HistoryId,
             Formats = request.Formats
         };
 
@@ -155,44 +113,60 @@ public sealed class ReportsController : ControllerBase
         return File(bytes, result.ContentType, result.FileName);
     }
 
-    /*
-    [HttpPost("generate")]
-    public async Task<IActionResult> Generate(
-    [FromBody] GenerateReportRequest request,
-    [FromServices] GenerateReportHandler handler,
+    [HttpGet("dynamic-history/{id:guid}")]
+    [ProducesResponseType(typeof(DynamicReportHistoryDetailsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DynamicHistoryById(
+    [FromRoute] Guid id,
+    [FromServices] GetDynamicReportHistoryHandler handler,
     CancellationToken cancellationToken)
     {
-        var command = new GenerateReportCommand
+        var result = await handler.HandleAsync(id, cancellationToken);
+
+        if (result is null)
         {
-            Prompt = request.Prompt,
-            Formats = request.Formats
+            return NotFound();
+        }
+
+        var response = new DynamicReportHistoryDetailsResponse
+        {
+            Id = result.Id,
+            SourceHistoryId = result.SourceHistoryId,
+            Prompt = result.Prompt,
+            PlanJson = result.PlanJson,
+            Sql = result.Sql,
+            Action = result.Action,
+            FileName = result.FileName,
+            Format = result.Format,
+            RowCount = result.RowCount,
+            ExecutionTimeMs = result.ExecutionTimeMs,
+            CreatedAt = result.CreatedAt
         };
 
-        var result = await handler.HandleAsync(command, cancellationToken);
-
-        var bytes = await System.IO.File.ReadAllBytesAsync(result.FilePath, cancellationToken);
-
-        return File(bytes, result.ContentType, result.FileName);
+        return Ok(response);
     }
 
-    [HttpGet("history")]
-    [ProducesResponseType(typeof(List<ListReportHistoryItemResult>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> History(
-        [FromQuery] DateTime? dataInicio,
-        [FromQuery] DateTime? dataFim,
-        [FromQuery] string? nomeRelatorio,
-        [FromServices] ListReportHistoryHandler handler,
-        CancellationToken cancellationToken)
+    [HttpGet("dynamic-history")]
+    [ProducesResponseType(typeof(List<DynamicReportHistoryResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DynamicHistory(
+    [FromServices] ListDynamicReportHistoryHandler handler,
+    CancellationToken cancellationToken)
     {
-        var query = new ListReportHistoryQuery
+        var result = await handler.HandleAsync(cancellationToken);
+
+        var response = result.Select(x => new DynamicReportHistoryResponse
         {
-            DataInicio = dataInicio,
-            DataFim = dataFim,
-            NomeRelatorio = nomeRelatorio
-        };
+            Id = x.Id,
+            SourceHistoryId = x.SourceHistoryId,
+            Prompt = x.Prompt,
+            Action = x.Action,
+            FileName = x.FileName,
+            Format = x.Format,
+            RowCount = x.RowCount,
+            ExecutionTimeMs = x.ExecutionTimeMs,
+            CreatedAt = x.CreatedAt
+        }).ToList();
 
-        var result = await handler.HandleAsync(query, cancellationToken);
-
-        return Ok(result);
-    }*/
+        return Ok(response);
+    }
 }

@@ -26,9 +26,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="AI\Embeddings\" />
-	  <Folder Include="AI\Interpretation\" />
-	  <Folder Include="AI\SemanticSearch\" />
 	  <Folder Include="Documents\Excel\" />
 	</ItemGroup>
 

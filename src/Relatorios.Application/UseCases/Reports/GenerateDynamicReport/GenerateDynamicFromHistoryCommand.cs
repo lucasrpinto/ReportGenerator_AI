@@ -2,8 +2,8 @@
 
 namespace Relatorios.Application.UseCases.Reports.GenerateDynamicReport;
 
-public sealed class GenerateDynamicReportCommand
+public sealed class GenerateDynamicFromHistoryCommand
 {
-    public string Prompt { get; set; } = string.Empty;
+    public Guid HistoryId { get; set; }
     public List<ReportFormat> Formats { get; set; } = new();
 }

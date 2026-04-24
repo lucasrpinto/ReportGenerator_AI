@@ -1,0 +1,18 @@
+﻿namespace Relatorios.Application.UseCases.Reports.ListDynamicReportHistory;
+
+public sealed class ListDynamicReportHistoryItemResult
+{
+    public Guid Id { get; set; }
+    public Guid? SourceHistoryId { get; set; }
+
+    public string Prompt { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+
+    public string? FileName { get; set; }
+    public string? Format { get; set; }
+
+    public int RowCount { get; set; }
+    public long ExecutionTimeMs { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+}

@@ -35,13 +35,17 @@ public static class InfrastructureDependencyInjection
         services.Configure<OpenAiOptions>(
             configuration.GetSection(OpenAiOptions.SectionName));
 
+        services.Configure<SchemaCatalogOptions>(
+            configuration.GetSection(SchemaCatalogOptions.SectionName));
+
         services.AddHttpClient<IOpenAiQueryPlanner, OpenAiQueryPlanner>();
 
-        services.AddScoped<ISchemaCatalogProvider, StaticSchemaCatalogProvider>();
+        services.AddScoped<ISchemaCatalogProvider, DatabaseSchemaCatalogProvider>();
         services.AddScoped<ISqlSafetyValidator, SqlSafetyValidator>();
         services.AddScoped<IQuerySqlBuilder, PostgresQuerySqlBuilder>();
 
         services.AddScoped<IReportRepository, InMemoryReportRepository>();
+        services.AddScoped<IDynamicReportHistoryRepository, PostgresDynamicReportHistoryRepository>();
         services.AddScoped<IHistoricoRelatorioRepository, PostgresHistoricoRelatorioRepository>();
         services.AddScoped<IReportDataExecutor, PostgresReportDataExecutor>();
 

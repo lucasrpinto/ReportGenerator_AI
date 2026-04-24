@@ -1,10 +1,14 @@
 ﻿using Relatorios.Application.Abstractions.AI;
+using Relatorios.Application.Abstractions.Persistence;
 using Relatorios.Application.Abstractions.Querying;
 using Relatorios.Application.Abstractions.Security;
-using System.Diagnostics;
+using Relatorios.Application.DynamicReports;
 using Relatorios.Application.Mapping;
 using Relatorios.Application.Schema;
 using Relatorios.Application.Validation;
+using Relatorios.Domain.Entities;
+using System.Diagnostics;
+using System.Text.Json;
 
 namespace Relatorios.Application.UseCases.Reports.PreviewDynamicReport;
 
@@ -18,6 +22,8 @@ public sealed class PreviewDynamicReportHandler
     private readonly IReportDataExecutor _reportDataExecutor;
     private readonly ISqlSafetyValidator _sqlSafetyValidator;
     private readonly IQuerySqlBuilder _querySqlBuilder;
+    private readonly IDynamicReportHistoryRepository _historyRepository;
+    private readonly DynamicReportBusinessRulesApplier _businessRulesApplier;
 
     public PreviewDynamicReportHandler(
         IOpenAiQueryPlanner openAiQueryPlanner,
@@ -27,6 +33,8 @@ public sealed class PreviewDynamicReportHandler
         DynamicQueryPlanMapper mapper,
         IReportDataExecutor reportDataExecutor,
         ISqlSafetyValidator sqlSafetyValidator,
+        IDynamicReportHistoryRepository historyRepository,
+        DynamicReportBusinessRulesApplier businessRulesApplier,
         IQuerySqlBuilder querySqlBuilder)
     {
         _openAiQueryPlanner = openAiQueryPlanner;
@@ -37,6 +45,8 @@ public sealed class PreviewDynamicReportHandler
         _reportDataExecutor = reportDataExecutor;
         _sqlSafetyValidator = sqlSafetyValidator;
         _querySqlBuilder = querySqlBuilder;
+        _historyRepository = historyRepository;
+        _businessRulesApplier = businessRulesApplier;
     }
 
     public async Task<PreviewDynamicReportResult> HandleAsync(
@@ -44,6 +54,8 @@ public sealed class PreviewDynamicReportHandler
     CancellationToken cancellationToken)
     {
         var plan = await _openAiQueryPlanner.PlanAsync(command.Prompt, cancellationToken);
+
+        _businessRulesApplier.Apply(plan, command.Prompt);
 
         ApplySafetyDefaults(plan);
 
@@ -96,6 +108,23 @@ public sealed class PreviewDynamicReportHandler
 
             result.Rows.Add(item);
         }
+
+        var history = new DynamicReportHistory
+        {
+            Prompt = command.Prompt,
+            PlanJson = JsonSerializer.Serialize(plan),
+            Sql = sql,
+            Action = "preview",
+            FileName = null,
+            Format = null,
+            RowCount = result.RowCount,
+            ExecutionTimeMs = result.ExecutionTimeMs,
+            CreatedAt = DateTime.Now
+        };
+
+        await _historyRepository.SaveAsync(history, cancellationToken);
+
+        result.HistoryId = history.Id;
 
         return result;
     }

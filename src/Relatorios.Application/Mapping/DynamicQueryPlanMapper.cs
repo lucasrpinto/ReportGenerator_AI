@@ -1,6 +1,7 @@
-﻿using System.Text.Json;
+﻿using Relatorios.Application.DynamicReports;
 using Relatorios.Domain.DynamicQuerying;
 using Relatorios.Domain.Querying;
+using System.Text.Json;
 
 namespace Relatorios.Application.Mapping;
 
@@ -28,11 +29,20 @@ public sealed class DynamicQueryPlanMapper
 
         foreach (var field in dto.SelectFields)
         {
+            var fieldExpression = MapFieldExpression(field.Field);
+            var aggregation = field.Aggregation;
+
+            if (string.Equals(aggregation, "AVG", StringComparison.OrdinalIgnoreCase))
+            {
+                fieldExpression = $"ROUND(AVG({fieldExpression})::numeric, 2)";
+                aggregation = string.Empty;
+            }
+
             queryPlan.SelectFields.Add(new QuerySelectField
             {
-                Field = field.Field,
+                Field = fieldExpression,
                 Alias = field.Alias,
-                Aggregation = field.Aggregation
+                Aggregation = aggregation
             });
         }
 
@@ -79,6 +89,16 @@ public sealed class DynamicQueryPlanMapper
             JsonValueKind.False => false,
             JsonValueKind.Null => null,
             _ => jsonElement.ToString()
+        };
+    }
+
+    private static string MapFieldExpression(string field)
+    {
+        return field switch
+        {
+            DynamicCalculatedFields.ValorEstornado => "COALESCE(pep.valor_estornado, 0)",
+            DynamicCalculatedFields.ValorLiquido => "p.total - COALESCE(pep.valor_estornado, 0)",
+            _ => field
         };
     }
 }

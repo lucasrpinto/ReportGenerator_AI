@@ -1,4 +1,5 @@
-﻿using Relatorios.Application.Schema;
+﻿using Relatorios.Application.DynamicReports;
+using Relatorios.Application.Schema;
 using Relatorios.Domain.DynamicQuerying;
 
 namespace Relatorios.Application.Validation;
@@ -92,8 +93,16 @@ public sealed class DynamicQueryCatalogValidator
 
         foreach (var join in plan.Joins)
         {
+            if (IsEstornoCalculatedJoin(join))
+            {
+                continue;
+            }
+
             var allowedJoin = sourceTable.AllowedJoins.FirstOrDefault(x =>
-                string.Equals(x.Type, join.Type, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(
+                    NormalizeJoinType(x.Type),
+                    NormalizeJoinType(join.Type),
+                    StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(x.Table, join.Table, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(x.Alias, join.Alias, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(NormalizeSql(x.On), NormalizeSql(join.On), StringComparison.OrdinalIgnoreCase));
@@ -102,11 +111,23 @@ public sealed class DynamicQueryCatalogValidator
             {
                 errors.Add($"Join não permitido: {join.Type} {join.Table} {join.Alias} ON {join.On}");
             }
+        
         }
 
         ValidateGroupingConsistency(plan, errors);
 
+
         return errors;
+    }
+
+    private static bool IsEstornoCalculatedJoin(DynamicQueryJoinDto join)
+    {
+        return
+            string.Equals(NormalizeJoinType(join.Type), "LEFT JOIN", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(join.Alias, "pep", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(NormalizeSql(join.On), "pep.id_pedido = p.id", StringComparison.OrdinalIgnoreCase) &&
+            join.Table.Contains("pedido_estornos_parciais", StringComparison.OrdinalIgnoreCase) &&
+            join.Table.Contains("SUM", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ValidateGroupingConsistency(
@@ -195,6 +216,11 @@ public sealed class DynamicQueryCatalogValidator
 
         field = field.Trim();
 
+        if (field is DynamicCalculatedFields.ValorEstornado or DynamicCalculatedFields.ValorLiquido)
+        {
+            return true;
+        }
+
         if (field.Contains('(') || field.Contains(')'))
         {
             return false;
@@ -230,5 +256,19 @@ public sealed class DynamicQueryCatalogValidator
     {
         return string.Join(" ", value
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static string NormalizeJoinType(string value)
+    {
+        var normalized = value.Trim().ToUpperInvariant();
+
+        return normalized switch
+        {
+            "INNER" => "INNER JOIN",
+            "LEFT" => "LEFT JOIN",
+            "RIGHT" => "RIGHT JOIN",
+            "FULL" => "FULL JOIN",
+            _ => normalized
+        };
     }
 }
