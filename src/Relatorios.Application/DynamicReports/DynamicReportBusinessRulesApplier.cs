@@ -4,9 +4,73 @@ namespace Relatorios.Application.DynamicReports;
 
 public sealed class DynamicReportBusinessRulesApplier
 {
+    private readonly DynamicDateRangeExtractor _dateRangeExtractor;
+
+    public DynamicReportBusinessRulesApplier(DynamicDateRangeExtractor dateRangeExtractor)
+    {
+        _dateRangeExtractor = dateRangeExtractor;
+    }
+
+    private static string ResolveDateField(string prompt)
+    {
+        var normalizedPrompt = prompt.Trim().ToLowerInvariant();
+
+        var isPaidDateRequest =
+            normalizedPrompt.Contains("pago") ||
+            normalizedPrompt.Contains("paga") ||
+            normalizedPrompt.Contains("pagas") ||
+            normalizedPrompt.Contains("pagos") ||
+            normalizedPrompt.Contains("pagamento") ||
+            normalizedPrompt.Contains("pagamentos");
+
+        if (isPaidDateRequest)
+        {
+            return "p.pago_em";
+        }
+
+        return "p.criado_em";
+    }
+
+    private void ApplyDateFilters(DynamicQueryPlanDto plan, string prompt)
+    {
+        var range = _dateRangeExtractor.Extract(prompt);
+
+        if (range is null)
+        {
+            return;
+        }
+
+        RemoveExistingDateFilters(plan);
+
+        var dateField = ResolveDateField(prompt);
+
+        plan.Filters.Add(new DynamicQueryFilterDto
+        {
+            Field = dateField,
+            Operator = ">=",
+            Value = range.Start
+        });
+
+        plan.Filters.Add(new DynamicQueryFilterDto
+        {
+            Field = dateField,
+            Operator = "<",
+            Value = range.EndExclusive
+        });
+    }
+
+    private static void RemoveExistingDateFilters(DynamicQueryPlanDto plan)
+    {
+        plan.Filters.RemoveAll(x =>
+            string.Equals(x.Field, "p.pago_em", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Field, "p.criado_em", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Field, "p.cancelado_em", StringComparison.OrdinalIgnoreCase));
+    }
     public void Apply(DynamicQueryPlanDto plan, string prompt)
     {
         var normalizedPrompt = prompt.Trim().ToLowerInvariant();
+
+        ApplyDateFilters(plan, prompt);
 
         var hasAggregation = plan.SelectFields.Any(x =>
             !string.IsNullOrWhiteSpace(x.Aggregation));

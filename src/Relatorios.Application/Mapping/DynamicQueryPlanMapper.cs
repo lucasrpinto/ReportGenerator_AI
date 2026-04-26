@@ -73,6 +73,21 @@ public sealed class DynamicQueryPlanMapper
         return queryPlan;
     }
 
+    private static object? TryParseDateTime(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        if (DateTime.TryParse(value, out var dateTime))
+        {
+            return DateTime.SpecifyKind(dateTime, DateTimeKind.Unspecified);
+        }
+
+        return value;
+    }
+
     private static object? ConvertJsonElement(object? value)
     {
         if (value is not JsonElement jsonElement)
@@ -82,7 +97,7 @@ public sealed class DynamicQueryPlanMapper
 
         return jsonElement.ValueKind switch
         {
-            JsonValueKind.String => jsonElement.GetString(),
+            JsonValueKind.String => TryParseDateTime(jsonElement.GetString()),
             JsonValueKind.Number when jsonElement.TryGetInt32(out var intValue) => intValue,
             JsonValueKind.Number when jsonElement.TryGetDecimal(out var decimalValue) => decimalValue,
             JsonValueKind.True => true,

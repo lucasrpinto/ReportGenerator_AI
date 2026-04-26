@@ -21,6 +21,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<GenerateDynamicFromHistoryHandler>();
         services.AddScoped<ListDynamicReportHistoryHandler>();
         services.AddScoped<DynamicReportBusinessRulesApplier>();
+        services.AddScoped<DynamicDateRangeExtractor>();
 
         services.AddScoped<DynamicQueryPlanValidator>();
         services.AddScoped<DynamicQueryCatalogValidator>();

@@ -20,6 +20,7 @@ public sealed class GenerateDynamicFromHistoryHandler
     private readonly ISqlSafetyValidator _sqlSafetyValidator;
     private readonly IQuerySqlBuilder _querySqlBuilder;
     private readonly IExcelReportRenderer _excelReportRenderer;
+    private readonly IPdfReportRenderer _pdfReportRenderer;
 
     public GenerateDynamicFromHistoryHandler(
         IDynamicReportHistoryRepository historyRepository,
@@ -27,6 +28,7 @@ public sealed class GenerateDynamicFromHistoryHandler
         IReportDataExecutor reportDataExecutor,
         ISqlSafetyValidator sqlSafetyValidator,
         IQuerySqlBuilder querySqlBuilder,
+        IPdfReportRenderer pdfReportRenderer,
         IExcelReportRenderer excelReportRenderer)
     {
         _historyRepository = historyRepository;
@@ -35,6 +37,7 @@ public sealed class GenerateDynamicFromHistoryHandler
         _sqlSafetyValidator = sqlSafetyValidator;
         _querySqlBuilder = querySqlBuilder;
         _excelReportRenderer = excelReportRenderer;
+        _pdfReportRenderer = pdfReportRenderer;
     }
 
     public async Task<GenerateDynamicReportResult> HandleAsync(
@@ -46,9 +49,16 @@ public sealed class GenerateDynamicFromHistoryHandler
             throw new InvalidOperationException("É necessário informar ao menos um formato.");
         }
 
-        if (!command.Formats.Contains(ReportFormat.Excel))
+        if (command.Formats.Count > 1)
         {
-            throw new InvalidOperationException("Nesta etapa, apenas Excel está habilitado.");
+            throw new InvalidOperationException("Informe apenas um formato por requisição.");
+        }
+
+        var selectedFormat = command.Formats.First();
+
+        if (selectedFormat is not ReportFormat.Excel and not ReportFormat.Pdf)
+        {
+            throw new InvalidOperationException("Formato não suportado. Use Excel ou PDF.");
         }
 
         var history = await _historyRepository.GetByIdAsync(command.HistoryId, cancellationToken);
@@ -87,8 +97,6 @@ public sealed class GenerateDynamicFromHistoryHandler
 
         stopwatch.Stop();
 
-        var fileName = $"relatorio_dinamico_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
-
         var reportIntent = new ReportIntent
         {
             ReportType = "dynamic_report",
@@ -99,11 +107,12 @@ public sealed class GenerateDynamicFromHistoryHandler
             Limit = plan.Limit
         };
 
-        var filePath = await _excelReportRenderer.RenderAsync(
-            reportIntent,
-            dataTable,
-            fileName,
-            cancellationToken);
+        var generatedFile = selectedFormat switch
+        {
+            ReportFormat.Excel => await GenerateExcelAsync(reportIntent, dataTable, cancellationToken),
+            ReportFormat.Pdf => await GeneratePdfAsync(reportIntent, dataTable, cancellationToken),
+            _ => throw new InvalidOperationException("Formato não suportado.")
+        };
 
         await _historyRepository.SaveAsync(new DynamicReportHistory
         {
@@ -112,8 +121,8 @@ public sealed class GenerateDynamicFromHistoryHandler
             PlanJson = history.PlanJson,
             Sql = sql,
             Action = "generate",
-            FileName = fileName,
-            Format = "Excel",
+            FileName = generatedFile.FileName,
+            Format = generatedFile.FormatName,
             RowCount = dataTable.Rows.Count,
             ExecutionTimeMs = stopwatch.ElapsedMilliseconds,
             CreatedAt = DateTime.Now
@@ -121,9 +130,61 @@ public sealed class GenerateDynamicFromHistoryHandler
 
         return new GenerateDynamicReportResult
         {
+            FilePath = generatedFile.FilePath,
+            FileName = generatedFile.FileName,
+            ContentType = generatedFile.ContentType
+        };
+    }
+
+    private async Task<GeneratedDynamicFile> GenerateExcelAsync(
+    ReportIntent reportIntent,
+    System.Data.DataTable dataTable,
+    CancellationToken cancellationToken)
+    {
+        var fileName = $"relatorio_dinamico_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+        var filePath = await _excelReportRenderer.RenderAsync(
+            reportIntent,
+            dataTable,
+            fileName,
+            cancellationToken);
+
+        return new GeneratedDynamicFile
+        {
             FilePath = filePath,
             FileName = fileName,
-            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            FormatName = "Excel"
         };
+    }
+
+    private async Task<GeneratedDynamicFile> GeneratePdfAsync(
+        ReportIntent reportIntent,
+        System.Data.DataTable dataTable,
+        CancellationToken cancellationToken)
+    {
+        var fileName = $"relatorio_dinamico_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+
+        var filePath = await _pdfReportRenderer.RenderAsync(
+            reportIntent,
+            dataTable,
+            fileName,
+            cancellationToken);
+
+        return new GeneratedDynamicFile
+        {
+            FilePath = filePath,
+            FileName = fileName,
+            ContentType = "application/pdf",
+            FormatName = "Pdf"
+        };
+    }
+
+    private sealed class GeneratedDynamicFile
+    {
+        public string FilePath { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public string FormatName { get; set; } = string.Empty;
     }
 }
