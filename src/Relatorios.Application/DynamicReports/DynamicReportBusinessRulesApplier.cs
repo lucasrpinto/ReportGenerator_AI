@@ -15,19 +15,62 @@ public sealed class DynamicReportBusinessRulesApplier
     {
         var normalizedPrompt = prompt.Trim().ToLowerInvariant();
 
+        var isCanceledDateRequest =
+            normalizedPrompt.Contains("cancelado") ||
+            normalizedPrompt.Contains("cancelada") ||
+            normalizedPrompt.Contains("cancelados") ||
+            normalizedPrompt.Contains("canceladas") ||
+            normalizedPrompt.Contains("cancelamento");
+
+        if (isCanceledDateRequest)
+        {
+            return "p.cancelado_em";
+        }
+
         var isPaidDateRequest =
             normalizedPrompt.Contains("pago") ||
             normalizedPrompt.Contains("paga") ||
             normalizedPrompt.Contains("pagas") ||
             normalizedPrompt.Contains("pagos") ||
             normalizedPrompt.Contains("pagamento") ||
-            normalizedPrompt.Contains("pagamentos");
+            normalizedPrompt.Contains("pagamentos") ||
+            normalizedPrompt.Contains("recebido") ||
+            normalizedPrompt.Contains("recebidos");
 
         if (isPaidDateRequest)
         {
             return "p.pago_em";
         }
 
+        var isUpdatedDateRequest =
+            normalizedPrompt.Contains("atualizado") ||
+            normalizedPrompt.Contains("atualizada") ||
+            normalizedPrompt.Contains("atualizados") ||
+            normalizedPrompt.Contains("atualizadas") ||
+            normalizedPrompt.Contains("alterado") ||
+            normalizedPrompt.Contains("alterada");
+
+        if (isUpdatedDateRequest)
+        {
+            return "p.atualizado_em";
+        }
+
+        var isCreatedDateRequest =
+            normalizedPrompt.Contains("criado") ||
+            normalizedPrompt.Contains("criada") ||
+            normalizedPrompt.Contains("criados") ||
+            normalizedPrompt.Contains("criadas") ||
+            normalizedPrompt.Contains("realizado") ||
+            normalizedPrompt.Contains("realizada") ||
+            normalizedPrompt.Contains("feita") ||
+            normalizedPrompt.Contains("feito");
+
+        if (isCreatedDateRequest)
+        {
+            return "p.criado_em";
+        }
+
+        // Padrão para vendas sem especificação.
         return "p.criado_em";
     }
 
@@ -64,7 +107,8 @@ public sealed class DynamicReportBusinessRulesApplier
         plan.Filters.RemoveAll(x =>
             string.Equals(x.Field, "p.pago_em", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(x.Field, "p.criado_em", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(x.Field, "p.cancelado_em", StringComparison.OrdinalIgnoreCase));
+            string.Equals(x.Field, "p.cancelado_em", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Field, "p.atualizado_em", StringComparison.OrdinalIgnoreCase));
     }
     public void Apply(DynamicQueryPlanDto plan, string prompt)
     {

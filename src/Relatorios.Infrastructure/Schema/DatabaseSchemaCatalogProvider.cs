@@ -132,6 +132,17 @@ public sealed class DatabaseSchemaCatalogProvider : ISchemaCatalogProvider
                 On = "pt.id_pedido = p.id"
             });
         }
+
+        if (catalog.Tables.Any(x => string.Equals(x.Name, "pedido_estornos_parciais", StringComparison.OrdinalIgnoreCase)))
+        {
+            pedidos.AllowedJoins.Add(new SchemaJoinDefinition
+            {
+                Type = "LEFT JOIN",
+                Table = "pedido_estornos_parciais",
+                Alias = "pep",
+                On = "pep.id_pedido = p.id"
+            });
+        }
     }
 
     private static string GetAliasForTable(string tableName)

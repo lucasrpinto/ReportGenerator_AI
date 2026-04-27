@@ -40,7 +40,11 @@ public static class InfrastructureDependencyInjection
 
         services.AddHttpClient<IOpenAiQueryPlanner, OpenAiQueryPlanner>();
 
-        services.AddScoped<ISchemaCatalogProvider, DatabaseSchemaCatalogProvider>();
+        services.AddMemoryCache();
+
+        services.AddScoped<DatabaseSchemaCatalogProvider>();
+        services.AddScoped<ISchemaCatalogProvider, CachedSchemaCatalogProvider>();
+
         services.AddScoped<ISqlSafetyValidator, SqlSafetyValidator>();
         services.AddScoped<IQuerySqlBuilder, PostgresQuerySqlBuilder>();
 

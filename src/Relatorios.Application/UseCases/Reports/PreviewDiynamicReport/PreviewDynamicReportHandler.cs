@@ -53,6 +53,9 @@ public sealed class PreviewDynamicReportHandler
     PreviewDynamicReportCommand command,
     CancellationToken cancellationToken)
     {
+        // Conta o tempo total do preview desde o início do processamento
+        var stopwatch = Stopwatch.StartNew();
+
         var plan = await _openAiQueryPlanner.PlanAsync(command.Prompt, cancellationToken);
 
         _businessRulesApplier.Apply(plan, command.Prompt);
@@ -79,17 +82,12 @@ public sealed class PreviewDynamicReportHandler
 
         _sqlSafetyValidator.ValidateOrThrow(sql);
 
-        var stopwatch = Stopwatch.StartNew();
-
         var dataTable = await _reportDataExecutor.ExecuteAsync(queryPlan, cancellationToken);
-
-        stopwatch.Stop();
 
         var result = new PreviewDynamicReportResult
         {
             Sql = sql,
-            RowCount = dataTable.Rows.Count,
-            ExecutionTimeMs = stopwatch.ElapsedMilliseconds
+            RowCount = dataTable.Rows.Count
         };
 
         foreach (System.Data.DataColumn column in dataTable.Columns)
@@ -108,6 +106,11 @@ public sealed class PreviewDynamicReportHandler
 
             result.Rows.Add(item);
         }
+
+        // Para salvar no histórico o tempo total do preview
+        stopwatch.Stop();
+
+        result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
 
         var history = new DynamicReportHistory
         {

@@ -1,4 +1,5 @@
 using QuestPDF.Infrastructure;
+using Relatorios.Api.Middleware;
 using Relatorios.Application.DependencyInjection;
 using Relatorios.Infrastructure.DependencyInjection;
 
@@ -34,6 +35,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseMiddleware<ApiExceptionMiddleware>();
+
+app.UseHttpsRedirection();
 
 app.UseHttpsRedirection();
 

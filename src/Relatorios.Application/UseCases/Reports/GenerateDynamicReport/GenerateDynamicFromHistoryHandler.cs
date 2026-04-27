@@ -141,18 +141,20 @@ public sealed class GenerateDynamicFromHistoryHandler
     System.Data.DataTable dataTable,
     CancellationToken cancellationToken)
     {
-        var fileName = $"relatorio_dinamico_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+        // Nome base sem extensão.
+        // O renderer já adiciona .xlsx.
+        var fileNameWithoutExtension = BuildDynamicFileNameWithoutExtension();
 
         var filePath = await _excelReportRenderer.RenderAsync(
             reportIntent,
             dataTable,
-            fileName,
+            fileNameWithoutExtension,
             cancellationToken);
 
         return new GeneratedDynamicFile
         {
             FilePath = filePath,
-            FileName = fileName,
+            FileName = Path.GetFileName(filePath),
             ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             FormatName = "Excel"
         };
@@ -163,21 +165,28 @@ public sealed class GenerateDynamicFromHistoryHandler
         System.Data.DataTable dataTable,
         CancellationToken cancellationToken)
     {
-        var fileName = $"relatorio_dinamico_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+        // Nome base sem extensão.
+        // O renderer já adiciona .pdf.
+        var fileNameWithoutExtension = BuildDynamicFileNameWithoutExtension();
 
         var filePath = await _pdfReportRenderer.RenderAsync(
             reportIntent,
             dataTable,
-            fileName,
+            fileNameWithoutExtension,
             cancellationToken);
 
         return new GeneratedDynamicFile
         {
             FilePath = filePath,
-            FileName = fileName,
+            FileName = Path.GetFileName(filePath),
             ContentType = "application/pdf",
             FormatName = "Pdf"
         };
+    }
+
+    private static string BuildDynamicFileNameWithoutExtension()
+    {
+        return $"relatorio_dinamico_{DateTime.Now:yyyyMMdd_HHmmss}";
     }
 
     private sealed class GeneratedDynamicFile
