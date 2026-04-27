@@ -6,5 +6,7 @@
     <Project Path="src/Relatorios.Domain/Relatorios.Domain.csproj" />
     <Project Path="src/Relatorios.Infrastructure/Relatorios.Infrastructure.csproj" />
   </Folder>
-  <Folder Name="/tests/" />
+  <Folder Name="/tests/">
+    <Project Path="tests/Relatorios.Tests/Relatorios.Tests.csproj" />
+  </Folder>
 </Solution>
