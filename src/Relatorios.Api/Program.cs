@@ -72,17 +72,21 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-// CORS fixo para teste local
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy
-            .WithOrigins("http://localhost:8080", "https://localhost:8080")
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
 });
+
 
 var app = builder.Build();
 
