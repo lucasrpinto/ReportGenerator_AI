@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Relatorios.Application.UseCases.Reports.GenerateDynamicReport;
 using Relatorios.Application.UseCases.Reports.GetDynamicReportHistory;
 using Relatorios.Application.UseCases.Reports.ListDynamicReportHistory;
@@ -10,6 +11,7 @@ using Relatorios.Contracts.Responses;
 namespace Relatorios.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/reports")]
 public sealed class ReportsController : ControllerBase
 {

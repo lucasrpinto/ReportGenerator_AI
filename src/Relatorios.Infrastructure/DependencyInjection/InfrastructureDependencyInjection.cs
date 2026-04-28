@@ -56,6 +56,13 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IPdfReportRenderer, PdfReportRenderer>();
         services.AddScoped<IExcelReportRenderer, ClosedXmlExcelReportRenderer>();
 
+        services.Configure<JwtOptions>(
+            configuration.GetSection(JwtOptions.SectionName));
+
+        services.AddScoped<IUserRepository, PostgresUserRepository>();
+        services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+
         return services;
     }
 }
