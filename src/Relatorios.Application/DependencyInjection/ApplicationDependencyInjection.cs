@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Relatorios.Application.DynamicReports;
 using Relatorios.Application.Mapping;
+using Relatorios.Application.UseCases.Auth.ChangePassword;
 using Relatorios.Application.UseCases.Auth.LoginUser;
 using Relatorios.Application.UseCases.Auth.RegisterUser;
 using Relatorios.Application.UseCases.Reports.GenerateDynamicReport;
@@ -32,6 +33,7 @@ public static class ApplicationDependencyInjection
 
         services.AddScoped<RegisterUserHandler>();
         services.AddScoped<LoginUserHandler>();
+        services.AddScoped<ChangePasswordHandler>();
 
         return services;
     }

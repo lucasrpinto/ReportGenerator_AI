@@ -60,7 +60,7 @@ public static class InfrastructureDependencyInjection
             configuration.GetSection(JwtOptions.SectionName));
 
         services.AddScoped<IUserRepository, PostgresUserRepository>();
-        services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
+        services.AddScoped<IPasswordHasher, IdentityPasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
         return services;

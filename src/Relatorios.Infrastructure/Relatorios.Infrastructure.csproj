@@ -8,10 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.0" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.7" />
     <PackageReference Include="Npgsql" Version="10.0.2" />
     <PackageReference Include="QuestPDF" Version="2026.2.4" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.17.0" />
@@ -23,8 +24,8 @@
   </ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.7" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.7" />
 	</ItemGroup>
 
 	<ItemGroup>
