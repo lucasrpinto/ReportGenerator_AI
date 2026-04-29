@@ -15,17 +15,20 @@ public sealed class PreviewDynamicReportHandler
     private readonly IReadOnlySqlExecutor _readOnlySqlExecutor;
     private readonly ISqlSafetyValidator _sqlSafetyValidator;
     private readonly IDynamicReportHistoryRepository _historyRepository;
+    private readonly DynamicDateRangeExtractor _dateRangeExtractor;
 
     public PreviewDynamicReportHandler(
-        IOpenAiSqlPlanner openAiSqlPlanner,
-        IReadOnlySqlExecutor readOnlySqlExecutor,
-        ISqlSafetyValidator sqlSafetyValidator,
-        IDynamicReportHistoryRepository historyRepository)
+    IOpenAiSqlPlanner openAiSqlPlanner,
+    IReadOnlySqlExecutor readOnlySqlExecutor,
+    ISqlSafetyValidator sqlSafetyValidator,
+    IDynamicReportHistoryRepository historyRepository,
+    DynamicDateRangeExtractor dateRangeExtractor)
     {
         _openAiSqlPlanner = openAiSqlPlanner;
         _readOnlySqlExecutor = readOnlySqlExecutor;
         _sqlSafetyValidator = sqlSafetyValidator;
         _historyRepository = historyRepository;
+        _dateRangeExtractor = dateRangeExtractor;
     }
 
     public async Task<PreviewDynamicReportResult> HandleAsync(
@@ -37,41 +40,13 @@ public sealed class PreviewDynamicReportHandler
             throw new InvalidOperationException("O prompt é obrigatório.");
         }
 
-        var page = command.Page.GetValueOrDefault(1);
-        var pageSize = command.PageSize.GetValueOrDefault(DynamicReportLimits.PreviewDefaultPageSize);
-
-        if (page <= 0)
-        {
-            throw new InvalidOperationException("A página deve ser maior que zero.");
-        }
-
-        if (pageSize <= 0)
-        {
-            throw new InvalidOperationException("O tamanho da página deve ser maior que zero.");
-        }
-
-        if (pageSize > DynamicReportLimits.PreviewMaxPageSize)
-        {
-            pageSize = DynamicReportLimits.PreviewMaxPageSize;
-        }
-
-        var offset = (page - 1) * pageSize;
-
-        if (offset >= DynamicReportLimits.PreviewMaxRows)
-        {
-            throw new InvalidOperationException(
-                $"O preview permite consultar no máximo {DynamicReportLimits.PreviewMaxRows} registros.");
-        }
-
-        var remainingPreviewRows = DynamicReportLimits.PreviewMaxRows - offset;
-
-        var limitToFetch = Math.Min(
-            pageSize + 1,
-            remainingPreviewRows);
+        var dateRange = _dateRangeExtractor.Extract(command.Prompt);
 
         var stopwatch = Stopwatch.StartNew();
 
-        var sql = await _openAiSqlPlanner.GenerateSqlAsync(command.Prompt, cancellationToken);
+        var sql = await _openAiSqlPlanner.GenerateSqlAsync(
+            command.Prompt,
+            cancellationToken);
 
         sql = DynamicSqlTextNormalizer.NormalizeForExecution(sql);
 
@@ -79,17 +54,10 @@ public sealed class PreviewDynamicReportHandler
 
         var dataTable = await _readOnlySqlExecutor.ExecuteAsync(
             sql,
-            limitToFetch,
-            offset,
+            DynamicReportLimits.PreviewMaxRows,
+            offset: 0,
             DynamicReportLimits.SqlCommandTimeoutSeconds,
             cancellationToken);
-
-        var hasNextPage = dataTable.Rows.Count > pageSize;
-
-        if (hasNextPage)
-        {
-            dataTable.Rows.RemoveAt(dataTable.Rows.Count - 1);
-        }
 
         stopwatch.Stop();
 
@@ -97,11 +65,11 @@ public sealed class PreviewDynamicReportHandler
         {
             Sql = sql,
             RowCount = dataTable.Rows.Count,
-            ExecutionTimeMs = stopwatch.ElapsedMilliseconds,
-            Page = page,
-            PageSize = pageSize,
             MaxPreviewRows = DynamicReportLimits.PreviewMaxRows,
-            HasNextPage = hasNextPage && (offset + pageSize) < DynamicReportLimits.PreviewMaxRows
+            ExecutionTimeMs = stopwatch.ElapsedMilliseconds,
+            StartDate = dateRange?.Start,
+            EndDate = dateRange?.EndExclusive.AddTicks(-1),
+            TotalLiquido = CalculateTotalLiquido(dataTable)
         };
 
         foreach (System.Data.DataColumn column in dataTable.Columns)
@@ -127,8 +95,7 @@ public sealed class PreviewDynamicReportHandler
             PlanJson = JsonSerializer.Serialize(new
             {
                 mode = "sql",
-                page,
-                pageSize
+                maxPreviewRows = DynamicReportLimits.PreviewMaxRows
             }),
             Sql = sql,
             Action = "preview",
@@ -144,5 +111,126 @@ public sealed class PreviewDynamicReportHandler
         result.HistoryId = history.Id;
 
         return result;
+    }
+
+    private static decimal CalculateTotalLiquido(System.Data.DataTable dataTable)
+    {
+        if (dataTable.Rows.Count == 0 || dataTable.Columns.Count == 0)
+        {
+            return 0m;
+        }
+
+        var preferredColumns = new[]
+        {
+        "total_liquido",
+        "valor_liquido",
+        "total_faturamento_liquido",
+        "total_faturamento",
+        "liquido"
+    };
+
+        var column = dataTable.Columns
+            .Cast<System.Data.DataColumn>()
+            .FirstOrDefault(c => preferredColumns.Any(name =>
+                string.Equals(c.ColumnName, name, StringComparison.OrdinalIgnoreCase)));
+
+        if (column is not null)
+        {
+            return SumColumn(dataTable, column);
+        }
+
+        var totalBrutoColumn = dataTable.Columns
+            .Cast<System.Data.DataColumn>()
+            .FirstOrDefault(c =>
+                string.Equals(c.ColumnName, "total_bruto", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(c.ColumnName, "valor_bruto", StringComparison.OrdinalIgnoreCase));
+
+        var valorEstornadoColumn = dataTable.Columns
+            .Cast<System.Data.DataColumn>()
+            .FirstOrDefault(c =>
+                string.Equals(c.ColumnName, "valor_estornado", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(c.ColumnName, "total_estornado", StringComparison.OrdinalIgnoreCase));
+
+        if (totalBrutoColumn is not null)
+        {
+            var totalBruto = SumColumn(dataTable, totalBrutoColumn);
+            var valorEstornado = valorEstornadoColumn is null
+                ? 0m
+                : SumColumn(dataTable, valorEstornadoColumn);
+
+            return totalBruto - valorEstornado;
+        }
+
+        return 0m;
+    }
+
+    private static decimal SumColumn(
+        System.Data.DataTable dataTable,
+        System.Data.DataColumn column)
+    {
+        var total = 0m;
+
+        foreach (System.Data.DataRow row in dataTable.Rows)
+        {
+            var value = row[column];
+
+            if (value is null || value == DBNull.Value)
+            {
+                continue;
+            }
+
+            if (value is decimal decimalValue)
+            {
+                total += decimalValue;
+                continue;
+            }
+
+            if (value is int intValue)
+            {
+                total += intValue;
+                continue;
+            }
+
+            if (value is long longValue)
+            {
+                total += longValue;
+                continue;
+            }
+
+            if (value is double doubleValue)
+            {
+                total += Convert.ToDecimal(doubleValue);
+                continue;
+            }
+
+            if (value is float floatValue)
+            {
+                total += Convert.ToDecimal(floatValue);
+                continue;
+            }
+
+            var text = value.ToString();
+
+            if (decimal.TryParse(
+                text,
+                System.Globalization.NumberStyles.Any,
+                new System.Globalization.CultureInfo("pt-BR"),
+                out var parsedPtBr))
+            {
+                total += parsedPtBr;
+                continue;
+            }
+
+            if (decimal.TryParse(
+                text,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsedInvariant))
+            {
+                total += parsedInvariant;
+            }
+        }
+
+        return total;
     }
 }

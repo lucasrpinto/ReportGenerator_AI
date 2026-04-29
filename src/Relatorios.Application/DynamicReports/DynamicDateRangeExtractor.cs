@@ -53,6 +53,12 @@ public sealed class DynamicDateRangeExtractor
             };
         }
 
+        var relativeRange = ExtractRelativeRange(text);
+        if (relativeRange is not null)
+        {
+            return relativeRange;
+        }
+
         var explicitRange = ExtractExplicitRange(text);
         if (explicitRange is not null)
         {
@@ -63,6 +69,50 @@ public sealed class DynamicDateRangeExtractor
         if (monthRange is not null)
         {
             return monthRange;
+        }
+
+        return null;
+    }
+
+    private static DynamicDateRange? ExtractRelativeRange(string text)
+    {
+        var patterns = new[]
+        {
+        @"(?:faz|há|ha)\s+(\d+)\s+dias?",
+        @"(?:últimos|ultimos|últimas|ultimas)\s+(\d+)\s+dias?",
+        @"(?:faz|há|ha)\s+(\d+)\s+meses?",
+        @"(?:últimos|ultimos|últimas|ultimas)\s+(\d+)\s+meses?"
+    };
+
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(text, pattern);
+
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var quantity = int.Parse(match.Groups[1].Value);
+            var today = DateTime.Today;
+
+            if (pattern.Contains("dias?"))
+            {
+                return new DynamicDateRange
+                {
+                    Start = today.AddDays(-quantity),
+                    EndExclusive = today.AddDays(1)
+                };
+            }
+
+            if (pattern.Contains("meses?"))
+            {
+                return new DynamicDateRange
+                {
+                    Start = today.AddMonths(-quantity),
+                    EndExclusive = today.AddDays(1)
+                };
+            }
         }
 
         return null;

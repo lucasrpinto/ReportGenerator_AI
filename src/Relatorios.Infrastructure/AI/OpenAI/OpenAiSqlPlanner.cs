@@ -93,6 +93,22 @@ public sealed class OpenAiSqlPlanner : IOpenAiSqlPlanner
                                     - Não retorne explicações.
                                     - Não retorne ```sql.
 
+                                    Regras obrigatórias de seleção de campos:
+                                    - Não retorne colunas extras sem o usuário pedir.
+                                    - Não retorne dados de telefone, celular ou e-mail, exceto quando o usuário pedir explicitamente telefone, celular, e-mail, email, contato ou dados de contato.
+                                    - Não retorne itens, produtos, ingressos ou dados de pedido_itens, exceto quando o usuário pedir explicitamente itens, produtos, ingressos, itens comprados ou itens das últimas compras.
+                                    - Não faça JOIN com pedido_itens se o usuário não pedir itens, produtos ou ingressos.
+                                    - Não faça JOIN com tabelas de contato extras se o usuário não pedir dados de contato.
+                                    - Para relatórios comuns de vendas ou pedidos, quando o usuário não especificar campos adicionais, retorne somente:
+                                      p.id AS pedido_id,
+                                      c.nome AS cliente_nome,
+                                      p.total AS total_bruto,
+                                      valor_estornado,
+                                      total_liquido.
+                                    - Para valor_estornado, use COALESCE do total estornado do pedido.
+                                    - Para total_liquido, use p.total menos o valor estornado.
+                                    - Quando usar pedido_estornos_parciais, agregue os estornos por pedido em uma CTE antes de juntar com pedidos, para evitar duplicar valores.
+
                                     Regras sobre LIMIT, paginação e volume:
                                     - Não coloque LIMIT na consulta.
                                     - Não coloque OFFSET na consulta.
@@ -135,6 +151,7 @@ public sealed class OpenAiSqlPlanner : IOpenAiSqlPlanner
                                     - Se o usuário pedir últimas 2 compras, retorne dados suficientes para identificar as 2 compras.
 
                                     Regras específicas da tabela pedido_itens:
+                                    - Só use a tabela pedido_itens quando o usuário pedir explicitamente itens, produtos, ingressos, itens comprados ou itens das últimas compras.
                                     - Para nome do item ou ingresso, use sempre pi.nome_ingresso.
                                     - Para quantidade, use sempre pi.quantidade.
                                     - Para relacionar itens com pedidos, use pi.id_pedido = p.id.
@@ -191,10 +208,12 @@ public sealed class OpenAiSqlPlanner : IOpenAiSqlPlanner
                                     - Não retorne nomes técnicos desnecessários quando puder usar aliases claros.
 
                                     Regras sobre campos de contato:
+                                    - Só retorne telefone, celular ou e-mail quando o usuário pedir explicitamente.
                                     - Quando o usuário pedir telefone, retorne c.telefone se existir no schema.
                                     - Quando o usuário pedir celular, retorne c.celular se existir no schema.
                                     - Quando o usuário pedir e-mail ou email, retorne c.email se existir no schema.
-                                    - Quando o usuário pedir dados do cliente, retorne c.id e c.nome.
+                                    - Quando o usuário pedir contato ou dados de contato, pode retornar telefone, celular e e-mail, se existirem no schema.
+                                    - Quando o usuário não pedir contato, não retorne c.telefone, c.celular nem c.email.
 
                                     Regras sobre colunas deletado_em:
                                     - Quando uma tabela tiver deletado_em, filtre registros ativos usando deletado_em IS NULL.
@@ -225,6 +244,20 @@ public sealed class OpenAiSqlPlanner : IOpenAiSqlPlanner
                                     - Depois ranqueie os pedidos por cliente.
                                     - Depois selecione as últimas N compras.
                                     - Depois agregue ou projete os itens no SELECT final.
+
+                                    Formato padrão para relatórios de vendas/pedidos:
+                                    - Se o usuário pedir vendas, pedidos, faturamento, valores, maiores vendas, últimas vendas ou relatório de vendas sem especificar campos adicionais, retorne somente:
+                                      pedido_id,
+                                      cliente_nome,
+                                      total_bruto,
+                                      valor_estornado,
+                                      total_liquido.
+                                    - Não inclua itens por padrão.
+                                    - Não inclua telefone por padrão.
+                                    - Não inclua celular por padrão.
+                                    - Não inclua e-mail por padrão.
+                                    - Não inclua todas as colunas da tabela.
+                                    - Nunca use SELECT *.
 
                                     SCHEMA PERMITIDO:
                                     {schemaText}
