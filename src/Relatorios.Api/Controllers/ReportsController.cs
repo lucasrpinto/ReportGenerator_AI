@@ -78,7 +78,9 @@ public sealed class ReportsController : ControllerBase
     {
         var command = new PreviewDynamicReportCommand
         {
-            Prompt = request.Prompt
+            Prompt = request.Prompt,
+            Page = request.Page,
+            PageSize = request.PageSize
         };
 
         var result = await handler.HandleAsync(command, cancellationToken);
@@ -89,6 +91,10 @@ public sealed class ReportsController : ControllerBase
             Sql = result.Sql,
             RowCount = result.RowCount,
             ExecutionTimeMs = result.ExecutionTimeMs,
+            Page = result.Page,
+            PageSize = result.PageSize,
+            MaxPreviewRows = result.MaxPreviewRows,
+            HasNextPage = result.HasNextPage,
             Columns = result.Columns,
             Rows = result.Rows
         };

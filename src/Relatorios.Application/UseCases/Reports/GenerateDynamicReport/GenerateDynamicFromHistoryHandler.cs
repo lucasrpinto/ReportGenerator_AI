@@ -1,12 +1,10 @@
 ﻿using System.Diagnostics;
-using System.Text.Json;
 using Relatorios.Application.Abstractions.Documents;
 using Relatorios.Application.Abstractions.Persistence;
 using Relatorios.Application.Abstractions.Querying;
 using Relatorios.Application.Abstractions.Security;
-using Relatorios.Application.Mapping;
+using Relatorios.Application.DynamicReports;
 using Relatorios.Contracts.Enums;
-using Relatorios.Domain.DynamicQuerying;
 using Relatorios.Domain.Entities;
 using Relatorios.Domain.Reporting;
 
@@ -15,27 +13,21 @@ namespace Relatorios.Application.UseCases.Reports.GenerateDynamicReport;
 public sealed class GenerateDynamicFromHistoryHandler
 {
     private readonly IDynamicReportHistoryRepository _historyRepository;
-    private readonly DynamicQueryPlanMapper _mapper;
-    private readonly IReportDataExecutor _reportDataExecutor;
+    private readonly IReadOnlySqlExecutor _readOnlySqlExecutor;
     private readonly ISqlSafetyValidator _sqlSafetyValidator;
-    private readonly IQuerySqlBuilder _querySqlBuilder;
     private readonly IExcelReportRenderer _excelReportRenderer;
     private readonly IPdfReportRenderer _pdfReportRenderer;
 
     public GenerateDynamicFromHistoryHandler(
         IDynamicReportHistoryRepository historyRepository,
-        DynamicQueryPlanMapper mapper,
-        IReportDataExecutor reportDataExecutor,
+        IReadOnlySqlExecutor readOnlySqlExecutor,
         ISqlSafetyValidator sqlSafetyValidator,
-        IQuerySqlBuilder querySqlBuilder,
         IPdfReportRenderer pdfReportRenderer,
         IExcelReportRenderer excelReportRenderer)
     {
         _historyRepository = historyRepository;
-        _mapper = mapper;
-        _reportDataExecutor = reportDataExecutor;
+        _readOnlySqlExecutor = readOnlySqlExecutor;
         _sqlSafetyValidator = sqlSafetyValidator;
-        _querySqlBuilder = querySqlBuilder;
         _excelReportRenderer = excelReportRenderer;
         _pdfReportRenderer = pdfReportRenderer;
     }
@@ -61,7 +53,9 @@ public sealed class GenerateDynamicFromHistoryHandler
             throw new InvalidOperationException("Formato não suportado. Use Excel ou PDF.");
         }
 
-        var history = await _historyRepository.GetByIdAsync(command.HistoryId, cancellationToken);
+        var history = await _historyRepository.GetByIdAsync(
+            command.HistoryId,
+            cancellationToken);
 
         if (history is null)
         {
@@ -73,46 +67,58 @@ public sealed class GenerateDynamicFromHistoryHandler
             throw new InvalidOperationException("Só é possível gerar arquivo a partir de um histórico de preview.");
         }
 
-        var plan = JsonSerializer.Deserialize<DynamicQueryPlanDto>(
-            history.PlanJson,
-            new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-        if (plan is null)
+        if (string.IsNullOrWhiteSpace(history.Sql))
         {
-            throw new InvalidOperationException("Não foi possível ler o plano salvo no histórico.");
+            throw new InvalidOperationException("O histórico não possui SQL salvo para geração do relatório.");
         }
 
-        var queryPlan = _mapper.Map(plan);
+        var maxRows = selectedFormat switch
+        {
+            ReportFormat.Pdf => DynamicReportLimits.PdfMaxRows,
+            ReportFormat.Excel => DynamicReportLimits.ExcelMaxRows,
+            _ => throw new InvalidOperationException("Formato não suportado.")
+        };
 
-        var (sql, _) = _querySqlBuilder.Build(queryPlan);
+        var sql = DynamicSqlTextNormalizer.NormalizeForExecution(history.Sql);
 
         _sqlSafetyValidator.ValidateOrThrow(sql);
 
         var stopwatch = Stopwatch.StartNew();
 
-        var dataTable = await _reportDataExecutor.ExecuteAsync(queryPlan, cancellationToken);
-
-        stopwatch.Stop();
+        var dataTable = await _readOnlySqlExecutor.ExecuteAsync(
+            sql,
+            maxRows,
+            offset: 0,
+            DynamicReportLimits.SqlCommandTimeoutSeconds,
+            cancellationToken);
 
         var reportIntent = new ReportIntent
         {
             ReportType = "dynamic_report",
-            Entity = plan.Source,
+            Entity = "sql",
             Metric = "dynamic",
-            Dimensions = plan.SelectFields.Select(x => x.Field).ToList(),
-            GroupBy = plan.GroupBy,
-            Limit = plan.Limit
+            Dimensions = dataTable.Columns
+                .Cast<System.Data.DataColumn>()
+                .Select(x => x.ColumnName)
+                .ToList()
         };
 
         var generatedFile = selectedFormat switch
         {
-            ReportFormat.Excel => await GenerateExcelAsync(reportIntent, dataTable, cancellationToken),
-            ReportFormat.Pdf => await GeneratePdfAsync(reportIntent, dataTable, cancellationToken),
+            ReportFormat.Excel => await GenerateExcelAsync(
+                reportIntent,
+                dataTable,
+                cancellationToken),
+
+            ReportFormat.Pdf => await GeneratePdfAsync(
+                reportIntent,
+                dataTable,
+                cancellationToken),
+
             _ => throw new InvalidOperationException("Formato não suportado.")
         };
+
+        stopwatch.Stop();
 
         await _historyRepository.SaveAsync(new DynamicReportHistory
         {
@@ -120,7 +126,7 @@ public sealed class GenerateDynamicFromHistoryHandler
             Prompt = history.Prompt,
             PlanJson = history.PlanJson,
             Sql = sql,
-            Action = "generate",
+            Action = selectedFormat == ReportFormat.Pdf ? "generate_pdf" : "generate_excel",
             FileName = generatedFile.FileName,
             Format = generatedFile.FormatName,
             RowCount = dataTable.Rows.Count,
@@ -137,12 +143,12 @@ public sealed class GenerateDynamicFromHistoryHandler
     }
 
     private async Task<GeneratedDynamicFile> GenerateExcelAsync(
-    ReportIntent reportIntent,
-    System.Data.DataTable dataTable,
-    CancellationToken cancellationToken)
+        ReportIntent reportIntent,
+        System.Data.DataTable dataTable,
+        CancellationToken cancellationToken)
     {
         // Nome base sem extensão.
-        // O renderer já adiciona .xlsx.
+        // O renderer adiciona .xlsx.
         var fileNameWithoutExtension = BuildDynamicFileNameWithoutExtension();
 
         var filePath = await _excelReportRenderer.RenderAsync(
@@ -166,7 +172,7 @@ public sealed class GenerateDynamicFromHistoryHandler
         CancellationToken cancellationToken)
     {
         // Nome base sem extensão.
-        // O renderer já adiciona .pdf.
+        // O renderer adiciona .pdf.
         var fileNameWithoutExtension = BuildDynamicFileNameWithoutExtension();
 
         var filePath = await _pdfReportRenderer.RenderAsync(

@@ -63,6 +63,10 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IPasswordHasher, IdentityPasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
+        services.AddHttpClient<IOpenAiSqlPlanner, OpenAiSqlPlanner>();
+
+        services.AddScoped<IReadOnlySqlExecutor, PostgresReadOnlySqlExecutor>();
+
         return services;
     }
 }

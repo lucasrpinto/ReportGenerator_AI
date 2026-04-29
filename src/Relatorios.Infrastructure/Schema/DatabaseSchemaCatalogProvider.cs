@@ -86,11 +86,57 @@ public sealed class DatabaseSchemaCatalogProvider : ISchemaCatalogProvider
             table.Columns.Add(new SchemaColumnDefinition
             {
                 Name = columnName,
-                Description = $"Tipo PostgreSQL: {dataType}"
+                Description = BuildColumnDescription(tableName, columnName, dataType)
             });
         }
 
         return result;
+    }
+
+    private static string BuildColumnDescription(
+    string tableName,
+    string columnName,
+    string dataType)
+    {
+        var table = tableName.ToLowerInvariant();
+        var column = columnName.ToLowerInvariant();
+
+        if (table == "pedido_itens" && column == "nome_ingresso")
+        {
+            return $"Nome do item/ingresso comprado. Tipo PostgreSQL: {dataType}";
+        }
+
+        if (table == "pedido_itens" && column == "quantidade")
+        {
+            return $"Quantidade comprada do item/ingresso. Tipo PostgreSQL: {dataType}";
+        }
+
+        if (table == "pedido_itens" && column == "id_pedido")
+        {
+            return $"Chave para relacionar o item ao pedido. Relaciona com pedidos.id. Tipo PostgreSQL: {dataType}";
+        }
+
+        if (table == "pedidos" && column == "id_cliente")
+        {
+            return $"Chave para relacionar o pedido ao cliente. Relaciona com clientes.id. Tipo PostgreSQL: {dataType}";
+        }
+
+        if (table == "pedidos" && column == "total")
+        {
+            return $"Valor total bruto do pedido. Tipo PostgreSQL: {dataType}";
+        }
+
+        if (table == "pedidos" && column == "pago_em")
+        {
+            return $"Data em que o pedido foi pago. Use para relatórios de compras pagas. Tipo PostgreSQL: {dataType}";
+        }
+
+        if (table == "pedidos" && column == "criado_em")
+        {
+            return $"Data de criação do pedido. Use para relatórios de pedidos criados. Tipo PostgreSQL: {dataType}";
+        }
+
+        return $"Tipo PostgreSQL: {dataType}";
     }
 
     private static void ApplyKnownAliases(SchemaCatalog catalog)
@@ -143,6 +189,17 @@ public sealed class DatabaseSchemaCatalogProvider : ISchemaCatalogProvider
                 On = "pep.id_pedido = p.id"
             });
         }
+
+        if (catalog.Tables.Any(x => string.Equals(x.Name, "pedido_itens", StringComparison.OrdinalIgnoreCase)))
+        {
+            pedidos.AllowedJoins.Add(new SchemaJoinDefinition
+            {
+                Type = "LEFT JOIN",
+                Table = "pedido_itens",
+                Alias = "pi",
+                On = "pi.id_pedido = p.id"
+            });
+        }
     }
 
     private static string GetAliasForTable(string tableName)
@@ -153,6 +210,7 @@ public sealed class DatabaseSchemaCatalogProvider : ISchemaCatalogProvider
             "clientes" => "c",
             "pagamentos_transacoes" => "pt",
             "pedido_estornos_parciais" => "pep",
+            "pedido_itens" => "pi",
             _ => tableName[..1].ToLowerInvariant()
         };
     }
